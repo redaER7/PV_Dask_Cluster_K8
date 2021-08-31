@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Pod
+scheduler:
+  name: scheduler 
+  enabled: true
+  image:
+    repository: "daskdev/dask"
+    tag: 2021.8.1
+    pullPolicy: IfNotPresent
+  replicas: 1  #(should always be 1).
+  serviceType: "LoadBalancer" # Scheduler service type. Set to `LoadBalancer` to expose outside of your cluster.
+  # serviceType: "NodePort"
+  # serviceType: "ClusterIP"
+  #loadBalancerIP: null  # Some cloud providers allow you to specify the loadBalancerIP when using the `LoadBalancer` service type. If your cloud does not support it this option will be ignored.
+  servicePort: 8786 # Scheduler service internal port.
+# DASK WORKERS
+worker:
+  name: worker  # Dask worker name.
+  image:
+    repository: "daskdev/dask"  # Container image repository.
+    tag: 2021.8.1  # Container image tag.
+    pullPolicy: IfNotPresent  # Container image pull policy.
+    dask_worker: "dask-worker"  # Dask worker command. E.g `dask-cuda-worker` for GPU worker.
+  replicas: 2
+  resources:
+    limits:
+      cpu: 1
+      memory: 1G
+    requests:
+      cpu: 1
+      memory: 1G
+  mounts: # Worker Pod volumes and volume mounts, mounts.volumes follows kuberentes api v1 Volumes spec. mounts.volumeMounts follows kubernetesapi v1 VolumeMount spec
+    volumes:
+      - name: dask-storage
+        persistentVolumeClaim:
+         claimName: pvc-dask-data
+    volumeMounts:
+      - name: dask-storage
+        mountPath: /home/jovyan/save_data # folder for storage
+  env:
+    - name: EXTRA_PIP_PACKAGES
+      value: s3fs --upgrade
+# We want to keep the same packages on the worker and jupyter environments
+jupyter:
+  name: jupyter  # Jupyter name.
+  enabled: true  # Enable/disable the bundled Jupyter notebook.
+  #rbac: true  # Create RBAC service account and role to allow Jupyter pod to scale worker pods and access logs.
+  image:
+    repository: "daskdev/dask-notebook"  # Container image repository.
+    tag: 2021.8.1  # Container image tag.
+    pullPolicy: IfNotPresent  # Container image pull policy.
+  replicas: 1  # Number of notebook servers.
+  serviceType: "LoadBalancer" # Scheduler service type. Set to `LoadBalancer` to expose outside of your cluster.
+  # serviceType: "NodePort"
+  # serviceType: "ClusterIP"
+  servicePort: 80  # Jupyter service internal port.
+  # This hash corresponds to the password 'dask'
+  #password: 'sha1:aae8550c0a44:9507d45e087d5ee481a5ce9f4f16f37a0867318c' # Password hash.
+  env:
+    - name: EXTRA_PIP_PACKAGES
+      value: s3fs --upgrade
+  resources:
+    limits:
+      cpu: 1
+      memory: 1G
+    requests:
+      cpu: 1
+      memory: 1G
+  mounts: # Worker Pod volumes and volume mounts, mounts.volumes follows kuberentes api v1 Volumes spec. mounts.volumeMounts follows kubernetesapi v1 VolumeMount spec
+    volumes:
+      - name: dask-storage
+        persistentVolumeClaim:
+         claimName: pvc-dask-data
+    volumeMounts:
+      - name: dask-storage
+        mountPath: /home/jovyan/save_data # folder for storage
